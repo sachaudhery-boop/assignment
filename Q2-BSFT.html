@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quiz 2 BSFT25 | IAS 7 Statement of Cash Flows</title>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { user-select: none; -webkit-user-select: none; }
+        .watermark {
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-30deg);
+            font-size: clamp(4rem, 10vw, 8rem); color: rgba(0,0,0,0.03); z-index: -1; pointer-events: none; white-space: nowrap; font-weight: bold;
+        }
+        input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+    </style>
+</head>
+<body class="bg-slate-50 font-sans text-slate-800" oncontextmenu="return false;">
+    <div id="root"></div>
+    <div class="watermark">BSFT25 - ITU</div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        // --- CONFIGURATION ---
+        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz5zzXpQU7gArMt6MPIag1AJgcS7Pc16UWKxUEqM9KqUblZxzjb7G6fMcMfBwX0X170Vw/exec'; // PASTE YOUR URL HERE
+        const TIMER_SECONDS = 450; 
+        
+        const App = () => {
+            const [step, setStep] = useState(0); 
+            const [student, setStudent] = useState({ name: '', roll: '' });
+            const [timeLeft, setTimeLeft] = useState(TIMER_SECONDS);
+            const [answers, setAnswers] = useState({});
+            const [warnings, setWarnings] = useState(0);
+            const [results, setResults] = useState(null);
+            const [showSidebar, setShowSidebar] = useState(false);
+
+            useEffect(() => {
+                const urlParams = new URLSearchParams(window.location.search);
+                if (urlParams.get('reset') === 'true') {
+                    localStorage.removeItem('bsft25_ias7_attempted');
+                    window.history.replaceState({}, document.title, window.location.pathname);
+                } else if (localStorage.getItem('bsft25_ias7_attempted')) {
+                    setStep(6);
+                }
+            }, []);
+
+            useEffect(() => {
+                const handleVisibilityChange = () => {
+                    if (document.hidden && step > 0 && step < 5) {
+                        alert("Academic Integrity Warning: Leaving the exam tab or window is prohibited. Your action has been recorded and will be reported to the instructor.");
+                        setWarnings(w => w + 1);
+                    }
+                };
+                document.addEventListener("visibilitychange", handleVisibilityChange);
+                return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+            }, [step]);
+
+            useEffect(() => {
+                if (step > 0 && step < 5 && timeLeft > 0) {
+                    const timer = setTimeout(() => setTimeLeft(timeLeft - 1), 1000);
+                    return () => clearTimeout(timer);
+                } else if (timeLeft === 0 && step < 5) {
+                    handleNext();
+                }
+            }, [timeLeft, step]);
+
+            const calculateResults = () => {
+                const num = (val) => parseFloat(val) || 0;
+                const i1 = num(answers.i1), i2 = num(answers.i2), i3 = num(answers.i3);
+                const i4 = num(answers.i4), i5 = num(answers.i5);
+                const i6 = num(answers.i6), i7 = num(answers.i7);
+                const i8 = num(answers.i8), i9 = num(answers.i9), i10 = num(answers.i10);
+
+                let score = 0;
+                const checks = [];
+
+                const checkItem = (name, userVal, exactVal, ownFigureCondition) => {
+                    let status = "Incorrect";
+                    if (userVal === exactVal) {
+                        status = "Correct";
+                        score++;
+                    } else if (ownFigureCondition) {
+                        status = "Own-Figure Correct";
+                        score++;
+                    }
+                    checks.push({ name, userVal, exactVal, status });
+                };
+
+                checkItem("P1 Step 1: Adjusted Profit", i1, 142000, false);
+                checkItem("P1 Step 2: Working Capital", i2, -20000, false);
+                checkItem("P1 Step 3: Net Op Cash", i3, 122000, i3 === (i1 + i2));
+                checkItem("P2 Step 1: PPE Cash Outflow", i4, -130000, false);
+                checkItem("P2 Step 2: Net Inv Cash", i5, -105000, i5 === (25000 + i4));
+                checkItem("P3 Step 1: Dividends Paid", i6, -45000, false);
+                checkItem("P3 Step 2: Net Fin Cash", i7, 5000, i7 === (50000 + i6));
+                checkItem("P4 Step 1: Net Cash Change", i8, 22000, i8 === (i3 + i5 + i7));
+                checkItem("P4 Step 2: Opening Cash", i9, 45000, false);
+                checkItem("P4 Step 3: Closing Cash", i10, 67000, i10 === (i8 + i9));
+
+                return { score, checks };
+            };
+
+            const handleNext = () => {
+                if (step === 4) submitAssessment();
+                else {
+                    setStep(step + 1);
+                    setTimeLeft(TIMER_SECONDS);
+                    setShowSidebar(false); // Collapse drawer on new phase
+                }
+            };
+
+            const submitAssessment = () => {
+                const finalResults = calculateResults();
+                setResults(finalResults);
+                localStorage.setItem('bsft25_ias7_attempted', 'true');
+                setStep(5);
+                
+                const params = new URLSearchParams({
+                    name: student.name, roll: student.roll,
+                    i1: answers.i1 || 0, i2: answers.i2 || 0, i3: answers.i3 || 0,
+                    i4: answers.i4 || 0, i5: answers.i5 || 0,
+                    i6: answers.i6 || 0, i7: answers.i7 || 0,
+                    i8: answers.i8 || 0, i9: answers.i9 || 0, i10: answers.i10 || 0,
+                    score: finalResults.score,
+                    warnings: warnings
+                });
+                new Image().src = `${SCRIPT_URL}?${params.toString()}`;
+            };
+
+            if (step === 6) return <div className="flex h-screen items-center justify-center p-4 text-center text-xl font-bold text-red-600">Access Denied: Assessment already attempted.</div>;
+
+            return (
+                <div className="w-full max-w-4xl mx-auto p-4 sm:p-6 md:p-8 mt-4 sm:mt-10 bg-white shadow-xl rounded-lg border-t-4 border-blue-800 relative z-10 transition-all">
+                    <header className="flex flex-col sm:flex-row justify-between items-start sm:items-end border-b pb-4 mb-6 gap-4">
+                        <div>
+                            <h1 className="text-xl sm:text-2xl font-bold text-blue-900">Quiz 2 BSFT25: IAS 7 Statement of Cash Flows</h1>
+                            <p className="text-xs sm:text-sm text-slate-500 font-semibold mt-1">Information Technology University | Instructor: Salman Altaf</p>
+                        </div>
+                        {step > 0 && step < 5 && (
+                            <div className={`w-full sm:w-auto text-center px-4 py-2 rounded font-mono text-lg sm:text-xl font-bold ${timeLeft < 60 ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-700'}`}>
+                                Time: {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}
+                            </div>
+                        )}
+                    </header>
+
+                    {/* Step 0: Instructions */}
+                    {step === 0 && (
+                        <div className="space-y-4">
+                            <div className="bg-yellow-50 p-4 sm:p-5 rounded border border-yellow-200 text-sm mb-6">
+                                <strong>Important Assessment Rules:</strong> 
+                                <ul className="list-disc ml-5 mt-2 space-y-1">
+                                    <li>Enter all <strong>Cash Outflows as negative numbers</strong> (e.g., -50000).</li>
+                                    <li>Do not use commas or dollar signs in your answers.</li>
+                                    <li>Carry-forward calculations are enabled. If you make a mistake in an early step, subsequent steps using that data will be evaluated based on your prior input.</li>
+                                    <li className="text-red-600 font-bold">If you try to switch the window or tab during the quiz, it will be automatically recorded and sent to the instructor.</li>
+                                </ul>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-bold mb-1">Full Name</label>
+                                    <input className="w-full border rounded p-3" placeholder="e.g., Jane Doe" onChange={e => setStudent({...student, name: e.target.value})} />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-bold mb-1">ITU Roll Number</label>
+                                    <input className="w-full border rounded p-3" placeholder="e.g., BSF25000" onChange={e => setStudent({...student, roll: e.target.value})} />
+                                </div>
+                            </div>
+                            <button disabled={!student.name || !student.roll} onClick={() => setStep(1)} className="w-full bg-blue-800 hover:bg-blue-900 text-white font-bold py-3 sm:py-4 rounded mt-6 transition-colors disabled:opacity-50">Begin Assessment</button>
+                        </div>
+                    )}
+
+                    {/* Dynamic Previous Answers Drawer */}
+                    {step > 1 && step < 5 && (
+                        <div className="mb-6 border border-slate-200 rounded-lg overflow-hidden bg-slate-50">
+                            <button onClick={() => setShowSidebar(!showSidebar)} className="w-full bg-slate-100 p-3 text-left font-bold text-slate-700 flex justify-between items-center hover:bg-slate-200 transition-colors text-sm sm:text-base">
+                                <span>📊 Review Previous Phase Answers</span>
+                                <span>{showSidebar ? '▼' : '▶'}</span>
+                            </button>
+                            {showSidebar && (
+                                <div className="p-4 space-y-3 text-xs sm:text-sm">
+                                    {step > 1 && (
+                                        <div className="grid grid-cols-2 gap-x-4 gap-y-2 border-b border-slate-200 pb-3">
+                                            <span className="text-slate-500">Phase I: Adjusted Profit</span><span className="font-mono text-right">{answers.i1 || 0}</span>
+                                            <span className="text-slate-500">Phase I: Working Capital</span><span className="font-mono text-right">{answers.i2 || 0}</span>
+                                            <span className="text-slate-700 font-bold">Phase I: Net Op Cash</span><span className="font-mono font-bold text-blue-700 text-right">{answers.i3 || 0}</span>
+                                        </div>
+                                    )}
+                                    {step > 2 && (
+                                        <div className="grid grid-cols-2 gap-x-4 gap-y-2 border-b border-slate-200 pb-3 pt-1">
+                                            <span className="text-slate-500">Phase II: PPE Outflow</span><span className="font-mono text-right">{answers.i4 || 0}</span>
+                                            <span className="text-slate-700 font-bold">Phase II: Net Inv Cash</span><span className="font-mono font-bold text-emerald-700 text-right">{answers.i5 || 0}</span>
+                                        </div>
+                                    )}
+                                    {step > 3 && (
+                                        <div className="grid grid-cols-2 gap-x-4 gap-y-2 pt-1">
+                                            <span className="text-slate-500">Phase III: Dividends Paid</span><span className="font-mono text-right">{answers.i6 || 0}</span>
+                                            <span className="text-slate-700 font-bold">Phase III: Net Fin Cash</span><span className="font-mono font-bold text-purple-700 text-right">{answers.i7 || 0}</span>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Phase I */}
+                    {step === 1 && (
+                        <div className="space-y-4 animate-fade-in">
+                            <h2 className="text-lg sm:text-xl font-bold text-blue-800">Phase I: Operating Activities</h2>
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-sm text-left border-collapse border border-slate-300 whitespace-nowrap">
+                                    <thead className="bg-blue-100"><tr><th className="border p-2 sm:p-3">Item</th><th className="border p-2 sm:p-3 w-1/3">Amount ($)</th></tr></thead>
+                                    <tbody>
+                                        <tr><td className="border p-2 sm:p-3">Net Income</td><td className="border p-2 sm:p-3">125,000</td></tr>
+                                        <tr><td className="border p-2 sm:p-3">Depreciation Expense</td><td className="border p-2 sm:p-3">22,000</td></tr>
+                                        <tr><td className="border p-2 sm:p-3">Gain on Sale of Equipment</td><td className="border p-2 sm:p-3">5,000</td></tr>
+                                        <tr><td className="border p-2 sm:p-3">Increase in Accounts Receivable</td><td className="border p-2 sm:p-3">12,000</td></tr>
+                                        <tr><td className="border p-2 sm:p-3">Decrease in Accounts Payable</td><td className="border p-2 sm:p-3">8,000</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <label className="block text-sm font-bold mt-4">Step 1: Calculate Adjusted Profit</label>
+                            <input type="number" className="w-full border rounded p-3" onChange={e => setAnswers({...answers, i1: e.target.value})} />
+                            <label className="block text-sm font-bold mt-2">Step 2: Total Working Capital Changes</label>
+                            <input type="number" className="w-full border rounded p-3" onChange={e => setAnswers({...answers, i2: e.target.value})} />
+                            <label className="block text-sm font-bold mt-2">Step 3: Net Cash from Operating Activities</label>
+                            <input type="number" className="w-full border rounded p-3 mb-4" onChange={e => setAnswers({...answers, i3: e.target.value})} />
+                            <button onClick={handleNext} className="w-full sm:w-auto bg-slate-800 hover:bg-slate-900 text-white px-8 py-3 rounded font-bold transition-colors">Lock Phase I</button>
+                        </div>
+                    )}
+
+                    {/* Phase II */}
+                    {step === 2 && (
+                        <div className="space-y-4 animate-fade-in">
+                            <h2 className="text-lg sm:text-xl font-bold text-emerald-800">Phase II: Investing Activities</h2>
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-sm text-left border-collapse border border-slate-300 whitespace-nowrap">
+                                    <thead className="bg-emerald-100"><tr><th className="border p-2 sm:p-3">Item</th><th className="border p-2 sm:p-3 w-1/3">Amount ($)</th></tr></thead>
+                                    <tbody>
+                                        <tr><td className="border p-2 sm:p-3">Opening PPE</td><td className="border p-2 sm:p-3">400,000</td></tr>
+                                        <tr><td className="border p-2 sm:p-3">Closing PPE</td><td className="border p-2 sm:p-3">480,000</td></tr>
+                                        <tr><td className="border p-2 sm:p-3 bg-slate-50" colSpan="2"><strong>Equipment Sold During Year:</strong></td></tr>
+                                        <tr><td className="border p-2 sm:p-3 pl-6 sm:pl-10">Original Cost</td><td className="border p-2 sm:p-3">50,000</td></tr>
+                                        <tr><td className="border p-2 sm:p-3 pl-6 sm:pl-10">Accumulated Depreciation</td><td className="border p-2 sm:p-3">30,000</td></tr>
+                                        <tr><td className="border p-2 sm:p-3 pl-6 sm:pl-10">Cash Received on Sale</td><td className="border p-2 sm:p-3">25,000</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <label className="block text-sm font-bold mt-4">Step 1: Cash Outflow for PPE Purchases</label>
+                            <input type="number" className="w-full border rounded p-3" onChange={e => setAnswers({...answers, i4: e.target.value})} />
+                            <label className="block text-sm font-bold mt-2">Step 2: Net Cash from Investing Activities</label>
+                            <input type="number" className="w-full border rounded p-3 mb-4" onChange={e => setAnswers({...answers, i5: e.target.value})} />
+                            <button onClick={handleNext} className="w-full sm:w-auto bg-slate-800 hover:bg-slate-900 text-white px-8 py-3 rounded font-bold transition-colors">Lock Phase II</button>
+                        </div>
+                    )}
+
+                    {/* Phase III */}
+                    {step === 3 && (
+                        <div className="space-y-4 animate-fade-in">
+                            <h2 className="text-lg sm:text-xl font-bold text-purple-800">Phase III: Financing Activities</h2>
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-sm text-left border-collapse border border-slate-300 whitespace-nowrap">
+                                    <thead className="bg-purple-100"><tr><th className="border p-2 sm:p-3">Item</th><th className="border p-2 sm:p-3 w-1/3">Amount ($)</th></tr></thead>
+                                    <tbody>
+                                        <tr><td className="border p-2 sm:p-3">Opening Bonds Payable</td><td className="border p-2 sm:p-3">100,000</td></tr>
+                                        <tr><td className="border p-2 sm:p-3">Closing Bonds Payable</td><td className="border p-2 sm:p-3">150,000</td></tr>
+                                        <tr><td className="border p-2 sm:p-3">Opening Retained Earnings</td><td className="border p-2 sm:p-3">200,000</td></tr>
+                                        <tr><td className="border p-2 sm:p-3">Closing Retained Earnings</td><td className="border p-2 sm:p-3">280,000</td></tr>
+                                        <tr><td className="border p-2 sm:p-3 italic text-slate-500">Net Income (from Phase I)</td><td className="border p-2 sm:p-3 italic text-slate-500">125,000</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <label className="block text-sm font-bold mt-4">Step 1: Dividends Paid</label>
+                            <input type="number" className="w-full border rounded p-3" onChange={e => setAnswers({...answers, i6: e.target.value})} />
+                            <label className="block text-sm font-bold mt-2">Step 2: Net Cash from Financing Activities</label>
+                            <input type="number" className="w-full border rounded p-3 mb-4" onChange={e => setAnswers({...answers, i7: e.target.value})} />
+                            <button onClick={handleNext} className="w-full sm:w-auto bg-slate-800 hover:bg-slate-900 text-white px-8 py-3 rounded font-bold transition-colors">Lock Phase III</button>
+                        </div>
+                    )}
+
+                    {/* Phase IV */}
+                    {step === 4 && (
+                        <div className="space-y-4 animate-fade-in">
+                            <h2 className="text-lg sm:text-xl font-bold text-orange-800">Phase IV: Final Reconciliation</h2>
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-sm text-left border-collapse border border-slate-300 whitespace-nowrap">
+                                    <thead className="bg-orange-100"><tr><th className="border p-2 sm:p-3">Item</th><th className="border p-2 sm:p-3 w-1/3">Amount ($)</th></tr></thead>
+                                    <tbody>
+                                        <tr><td className="border p-2 sm:p-3">Opening Cash & Cash Equivalents</td><td className="border p-2 sm:p-3">45,000</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <label className="block text-sm font-bold mt-4">Step 1: Net Increase (Decrease) in Cash</label>
+                            <input type="number" className="w-full border rounded p-3" onChange={e => setAnswers({...answers, i8: e.target.value})} />
+                            <label className="block text-sm font-bold mt-2">Step 2: Opening Cash Balance</label>
+                            <input type="number" className="w-full border rounded p-3" onChange={e => setAnswers({...answers, i9: e.target.value})} />
+                            <label className="block text-sm font-bold mt-2">Step 3: Closing Cash Balance</label>
+                            <input type="number" className="w-full border rounded p-3 mb-6" onChange={e => setAnswers({...answers, i10: e.target.value})} />
+                            <button onClick={handleNext} className="w-full bg-blue-800 hover:bg-blue-900 text-white px-6 py-4 rounded font-bold text-lg transition-colors shadow-lg">Submit Final Assessment</button>
+                        </div>
+                    )}
+
+                    {/* Step 5: Complete */}
+                    {step === 5 && results && (
+                        <div className="space-y-6 animate-fade-in">
+                            <div className="text-center p-4">
+                                <h2 className="text-2xl sm:text-3xl font-bold text-blue-900 mb-2">Assessment Complete</h2>
+                                <p className="text-sm sm:text-base text-slate-600">Your answers have been securely submitted to the instructor.</p>
+                                <div className="inline-block bg-blue-100 text-blue-900 px-8 py-5 rounded-lg mt-6 shadow-inner">
+                                    <span className="text-4xl sm:text-5xl font-bold">{results.score}</span><span className="text-xl sm:text-2xl"> / 10</span>
+                                </div>
+                            </div>
+
+                            <div className="overflow-x-auto mt-6">
+                                <table className="w-full text-sm text-left border-collapse border border-slate-300 whitespace-nowrap">
+                                    <thead className="bg-slate-100">
+                                        <tr>
+                                            <th className="border p-2 sm:p-3">Section Item</th>
+                                            <th className="border p-2 sm:p-3">Your Answer</th>
+                                            <th className="border p-2 sm:p-3">Absolute Correct</th>
+                                            <th className="border p-2 sm:p-3">Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {results.checks.map((check, idx) => (
+                                            <tr key={idx} className={check.status === "Incorrect" ? "bg-red-50" : (check.status === "Own-Figure Correct" ? "bg-yellow-50" : "bg-green-50")}>
+                                                <td className="border p-2 sm:p-3 font-semibold text-slate-700">{check.name}</td>
+                                                <td className="border p-2 sm:p-3 font-mono">{check.userVal}</td>
+                                                <td className="border p-2 sm:p-3 font-mono">{check.exactVal}</td>
+                                                <td className="border p-2 sm:p-3 font-bold">
+                                                    {check.status === "Correct" && <span className="text-green-700">Correct (1 pt)</span>}
+                                                    {check.status === "Own-Figure Correct" && <span className="text-yellow-700">Carried-Forward (1 pt)</span>}
+                                                    {check.status === "Incorrect" && <span className="text-red-700">Incorrect (0 pt)</span>}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                            {warnings > 0 && (
+                                <div className="bg-red-50 border-l-4 border-red-600 p-4 mt-6">
+                                    <p className="text-red-700 text-sm font-bold text-center">Security Notice: {warnings} tab-switching infractions were recorded and sent to the instructor.</p>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
