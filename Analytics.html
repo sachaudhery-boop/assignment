@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced GA4 & UX Simulator</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        body { font-family: 'Roboto', sans-serif; background-color: #f1f3f4; margin: 0; overflow: hidden; }
+        h1, h2, h3, .google-sans { font-family: 'Google Sans', sans-serif; }
+        
+        .ga-sidebar { width: 72px; background: #fff; border-right: 1px solid #dadce0; z-index: 50; }
+        .ga-subnav { width: 250px; background: #fff; border-right: 1px solid #dadce0; z-index: 40; }
+        
+        .nav-item { color: #3c4043; border-radius: 0 16px 16px 0; margin-right: 8px; }
+        .nav-item:hover { background-color: #f1f3f4; }
+        .nav-item-active { background-color: #e8f0fe; color: #1a73e8; font-weight: 500; }
+        
+        .scrollable-content { height: calc(100vh - 64px); overflow-y: auto; background-color: #f8f9fa; }
+        
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #dadce0; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #bdc1c6; }
+
+        /* Simulator Devices */
+        .device-container { display: flex; justify-content: center; padding: 2rem; }
+        .phone-frame {
+            width: 375px; height: 750px; border: 12px solid #202124; border-radius: 40px;
+            overflow: hidden; position: relative; box-shadow: 0 24px 48px rgba(0,0,0,0.2); background: #fff;
+        }
+        .desktop-frame {
+            width: 100%; max-width: 1200px; height: 750px; border: 1px solid #dadce0; border-radius: 12px;
+            overflow: hidden; position: relative; box-shadow: 0 12px 24px rgba(0,0,0,0.1); background: #fff;
+        }
+
+        /* Mock Website Styles */
+        .mock-site { height: 100%; overflow-y: auto; display: flex; flex-direction: column; position: relative; scroll-behavior: smooth; }
+        .mock-nav { position: sticky; top: 0; background: white; z-index: 30; border-bottom: 1px solid #eee; }
+        .mock-footer { background: #111; color: #fff; padding: 2rem; margin-top: auto; }
+        
+        /* Friction Elements */
+        .friction-cookie { position: sticky; bottom: 0; width: 100%; background: rgba(17, 17, 17, 0.95); color: white; padding: 20px; z-index: 40; backdrop-filter: blur(4px); border-top: 1px solid #333; }
+        .friction-chat { position: fixed; bottom: 100px; right: 20px; width: 60px; height: 60px; background: #25D366; border-radius: 50%; box-shadow: 0 4px 12px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; z-index: 45; font-size: 30px; cursor: pointer; }
+
+        /* Heatmap Engine */
+        .heatmap-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,20,0.6); pointer-events: none; z-index: 100; mix-blend-mode: multiply; }
+        .heat-spot { position: absolute; border-radius: 50%; filter: blur(15px); pointer-events: none; z-index: 101; }
+        .heat-hot { background: radial-gradient(circle, rgba(255,0,0,1) 0%, rgba(255,255,0,0.8) 40%, rgba(0,255,0,0) 70%); }
+        .heat-cold { background: radial-gradient(circle, rgba(0,100,255,0.8) 0%, rgba(0,255,255,0.4) 50%, rgba(0,0,0,0) 80%); }
+        
+        .fold-line { position: absolute; top: 600px; left: 0; width: 100%; border-top: 2px dashed #ffeb3b; z-index: 102; pointer-events: none; }
+        .fold-text { position: absolute; top: 580px; right: 10px; color: #ffeb3b; font-size: 12px; font-weight: bold; z-index: 102; text-shadow: 1px 1px 2px black; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        // --- 1. DUMMY DATA SOURCES ---
+        const d_traffic = { labels: ['Oct 1','Oct 5','Oct 10','Oct 15','Oct 20','Oct 25','Oct 30'], datasets: [{ label: 'Active Users', data: [12000, 18500, 24000, 31000, 38000, 45000, 52000], borderColor: '#1a73e8', backgroundColor: 'rgba(26, 115, 232, 0.1)', fill: true, tension: 0.4 }] };
+        const d_devices = { labels: ['Mobile', 'Desktop', 'Tablet'], datasets: [{ data: [42500, 7500, 2000], backgroundColor: ['#1a73e8', '#34a853', '#fbbc04'], borderWidth: 0 }] };
+        
+        const table_acq = [
+            { channel: 'Paid Social', users: '24,150', sessions: '28,100', bounce: '42%', conv: '0.2%' },
+            { channel: 'Organic Search', users: '15,200', sessions: '18,500', bounce: '38%', conv: '0.4%' },
+            { channel: 'Direct', users: '9,350', sessions: '10,200', bounce: '45%', conv: '0.8%' },
+            { channel: 'Email', users: '3,300', sessions: '4,100', bounce: '25%', conv: '1.2%' }
+        ];
+
+        const table_demo = [
+            { city: 'Lahore', users: '21,500', sessions: '24,000', rev: 'Rs 95,000' },
+            { city: 'Karachi', users: '18,200', sessions: '20,100', rev: 'Rs 82,000' },
+            { city: 'Islamabad', users: '8,300', sessions: '9,400', rev: 'Rs 32,500' },
+            { city: 'Faisalabad', users: '4,000', sessions: '4,500', rev: 'Rs 15,000' }
+        ];
+
+        const table_ecom = [
+            { item: 'Pro Series English Willow Bat', views: '22,500', cart: '8,400', purchases: '105', rev: 'Rs 157,500' },
+            { item: 'Titanium Face Helmet', views: '11,200', cart: '3,200', purchases: '45', rev: 'Rs 38,250' },
+            { item: 'Wicket Keeping Gloves', views: '8,100', cart: '1,500', purchases: '22', rev: 'Rs 11,000' },
+            { item: 'Tape Ball Pro (Pack of 3)', views: '10,200', cart: '1,100', purchases: '13', rev: 'Rs 17,750' }
+        ];
+
+        const table_events = [
+            { event: 'session_start', count: '52,000', change: '+14%' },
+            { event: 'view_item', count: '38,500', change: '+22%' },
+            { event: 'add_to_cart', count: '14,200', change: '+18%' },
+            { event: 'begin_checkout', count: '12,100', change: '+15%' },
+            { event: 'purchase', count: '185', change: '-65%', alert: true }
+        ];
+
+        const table_tech = [
+            { device: 'Mobile', users: '42,500', cart: '12,500', checkout: '10,800', purchases: '22', conv: '0.05%', alert: true },
+            { device: 'Desktop', users: '7,500', cart: '1,400', checkout: '1,100', purchases: '145', conv: '1.93%', alert: false },
+            { device: 'Tablet', users: '2,000', cart: '300', checkout: '200', purchases: '18', conv: '0.90%', alert: false }
+        ];
+
+        // --- 2. REUSABLE COMPONENTS ---
+        const ChartEngine = ({ type, data, options, height = 'h-64' }) => {
+            const canvasRef = useRef(null);
+            const chartInstance = useRef(null);
+            useEffect(() => {
+                if (chartInstance.current) chartInstance.current.destroy();
+                if (canvasRef.current && window.Chart) {
+                    chartInstance.current = new window.Chart(canvasRef.current, { type, data, options: { responsive: true, maintainAspectRatio: false, ...options } });
+                }
+                return () => { if (chartInstance.current) chartInstance.current.destroy(); };
+            }, [data, type, options]);
+            return <div className={`relative w-full ${height}`}><canvas ref={canvasRef}></canvas></div>;
+        };
+
+        const Card = ({ title, children, width="col-span-1" }) => (
+            <div className={`bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex flex-col ${width}`}>
+                <h2 className="google-sans text-lg text-gray-800 mb-4">{title}</h2>
+                {children}
+            </div>
+        );
+
+        const DataTable = ({ columns, data, highlightRow }) => (
+            <div className="overflow-x-auto w-full">
+                <table className="w-full text-left">
+                    <thead><tr className="border-b border-gray-200">{columns.map((col,i)=><th key={i} className={`pb-3 text-sm text-gray-500 ${col.align==='right'?'text-right':''}`}>{col.label}</th>)}</tr></thead>
+                    <tbody>
+                        {data.map((row, i) => (
+                            <tr key={i} className={`border-b border-gray-100 ${row.alert || (highlightRow && highlightRow(row)) ? 'bg-red-50' : 'hover:bg-gray-50'}`}>
+                                {columns.map((col, j) => (
+                                    <td key={j} className={`py-4 text-sm ${col.align==='right'?'text-right':''} ${col.bold?'font-bold':''} ${row.alert && col.bold?'text-red-600':''}`}>{row[col.key]}</td>
+                                ))}
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+        );
+
+        // --- 3. GA4 DATA VIEWS ---
+        const SnapshotView = () => (
+            <div className="animate-fade-in max-w-7xl mx-auto">
+                <div className="grid grid-cols-4 gap-4 mb-6">
+                    {[{l:'Users', v:'52K', t:'+14.5%', c:'green'}, {l:'New users', v:'48K', t:'+16.2%', c:'green'}, {l:'Event count', v:'245K', t:'+22.1%', c:'green'}, {l:'Total revenue', v:'Rs 224,500', t:'-65.3%', c:'red'}].map((m,i) => (
+                        <Card key={i} title={m.l}>
+                            <div className="text-3xl google-sans text-gray-800">{m.v}</div>
+                            <div className={`text-sm mt-2 font-medium text-${m.c}-600`}>{m.c==='red'?'↓':'↑'} {m.t} vs last 28 days</div>
+                        </Card>
+                    ))}
+                </div>
+                <div className="grid grid-cols-3 gap-6 mb-6">
+                    <Card title="Users over time" width="col-span-2"><ChartEngine type="line" data={d_traffic} options={{ plugins: { legend: { display: false } } }} /></Card>
+                    <Card title="Users by Device"><ChartEngine type="doughnut" data={d_devices} options={{ plugins: { legend: { position: 'bottom' } } }} /></Card>
+                </div>
+            </div>
+        );
+
+        const AcquisitionView = () => (
+            <div className="animate-fade-in max-w-6xl mx-auto">
+                <Card title="Session default channel group">
+                    <DataTable 
+                        columns={[{label:'Channel Group', key:'channel'}, {label:'Users', key:'users', align:'right'}, {label:'Sessions', key:'sessions', align:'right'}, {label:'Bounce Rate', key:'bounce', align:'right'}, {label:'Conv. Rate', key:'conv', align:'right', bold:true}]} 
+                        data={table_acq} 
+                    />
+                </Card>
+            </div>
+        );
+
+        const DemographicsView = () => (
+            <div className="animate-fade-in max-w-6xl mx-auto">
+                <Card title="Demographic details by City">
+                    <DataTable 
+                        columns={[{label:'City', key:'city'}, {label:'Users', key:'users', align:'right'}, {label:'Sessions', key:'sessions', align:'right'}, {label:'Total Revenue', key:'rev', align:'right', bold:true}]} 
+                        data={table_demo} 
+                    />
+                </Card>
+            </div>
+        );
+
+        const EcommerceView = () => (
+            <div className="animate-fade-in max-w-6xl mx-auto">
+                <Card title="Ecommerce purchases by Item name">
+                    <DataTable 
+                        columns={[{label:'Item Name', key:'item'}, {label:'Item Views', key:'views', align:'right'}, {label:'Add to Carts', key:'cart', align:'right'}, {label:'Purchases', key:'purchases', align:'right'}, {label:'Item Revenue', key:'rev', align:'right', bold:true}]} 
+                        data={table_ecom} 
+                    />
+                </Card>
+            </div>
+        );
+
+        const FunnelView = () => (
+            <div className="animate-fade-in max-w-5xl mx-auto">
+                <Card title="E-commerce Purchase Journey Funnel">
+                    <div className="space-y-6 mt-4">
+                        {table_events.map((e, i) => (
+                            <div key={i} className="relative">
+                                <div className="flex justify-between text-sm mb-2">
+                                    <span className={`font-medium ${e.alert ? 'text-red-600 font-bold' : 'text-gray-700'}`}>{e.event}</span>
+                                    <span className="text-gray-900 font-bold">{e.count} <span className="text-gray-400 font-normal ml-2">({e.change})</span></span>
+                                </div>
+                                <div className="w-full bg-gray-100 h-10 rounded-sm overflow-hidden flex">
+                                    <div className={`h-full ${e.alert ? 'bg-red-500' : 'bg-blue-500'}`} style={{ width: `${Math.max(0.5, parseInt(e.count.replace(/,/g,'')) / 52000 * 100)}%` }}></div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </Card>
+            </div>
+        );
+
+        const TechView = () => (
+            <div className="animate-fade-in max-w-6xl mx-auto">
+                <Card title="Tech details: Device category">
+                    <DataTable 
+                        columns={[{label:'Device category', key:'device'}, {label:'Users', key:'users', align:'right'}, {label:'Checkouts', key:'checkout', align:'right'}, {label:'Purchases', key:'purchases', align:'right', bold:true}, {label:'Purchase Rate', key:'conv', align:'right', bold:true}]} 
+                        data={table_tech} 
+                    />
+                </Card>
+            </div>
+        );
+
+        // --- 4. THE LIVE E-COMMERCE MOCKUP (WITH INTEGRATED HEATMAPS) ---
+        const MockEcommerce = ({ isMobile, isHeatmap }) => {
+            const [view, setView] = useState('product'); // Defaulting to product page for heatmap visibility
+            const [cart, setCart] = useState(0);
+
+            const handleCheckoutClick = (e) => {
+                if (isMobile) {
+                    e.preventDefault();
+                    alert("JavaScript Error: Uncaught TypeError: Cannot read properties of undefined.\n\nThe banner elements are overlapping the checkout button on the mobile DOM.");
+                } else {
+                    setView('success');
+                }
+            };
+
+            return (
+                <div className="mock-site bg-white relative">
+                    
+                    {/* Header */}
+                    <div className="mock-nav p-4 flex justify-between items-center shadow-sm shrink-0">
+                        <div className="flex items-center gap-3 cursor-pointer" onClick={()=>setView('product')}>
+                            <div className="w-8 h-8 bg-black text-white font-bold flex items-center justify-center rounded">PK</div>
+                            <div className="font-bold tracking-tight text-lg text-gray-800">PAK SPORTS</div>
+                        </div>
+                        <div className="relative cursor-pointer bg-gray-100 p-2 rounded-full" onClick={()=>setView('cart')}>
+                            <svg className="w-6 h-6 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+                            {cart > 0 && <div className="absolute -top-1 -right-1 bg-red-600 text-white text-xs font-bold w-5 h-5 flex items-center justify-center rounded-full border-2 border-white">{cart}</div>}
+                        </div>
+                    </div>
+
+                    {/* Router / Pages */}
+                    <div className="flex-1 relative">
+                        {view === 'product' && (
+                            <div className={!isMobile ? "flex max-w-5xl mx-auto p-8 gap-8" : ""}>
+                                <div className={!isMobile ? "w-1/2" : ""}>
+                                    <div className={`bg-gray-100 flex items-center justify-center text-8xl ${isMobile ? 'h-80 w-full border-b' : 'aspect-square rounded-xl border'}`}>🏏</div>
+                                </div>
+                                
+                                <div className={`p-6 ${!isMobile ? "w-1/2" : ""}`}>
+                                    <h1 className="text-2xl font-bold text-gray-900 mb-2">Pro Series English Willow Bat</h1>
+                                    <div className="text-2xl font-bold text-blue-600 mb-6">Rs 25,000</div>
+
+                                    {/* The False Bottom Description */}
+                                    <div className="text-gray-600 text-sm space-y-4 mb-8">
+                                        <p>Hand-selected for perfect grain structure and pristine balance. Designed for the modern power hitter, it features a massive sweet spot that extends across the mid-to-low blade.</p>
+                                        <p>The handle is constructed from premium Sarawak cane, incorporating specialized rubber inserts to absorb shock. We have spent years perfecting the bow of the blade.</p>
+                                        <p>Whether you are playing a quick T20 match or a grueling test innings, this bat is guaranteed to enhance your performance. The edges are thick, the spine is high, and the pickup is unbelievably light.</p>
+                                        <p>Grade 1 English Willow. Weight: 2.7 - 2.9 lbs. Premium Octopus Grip. Pre-knocked.</p>
+                                        <p>Dispatched within 24 hours. Delivery takes 3-5 working days via TCS Premium.</p>
+                                    </div>
+
+                                    {/* The Action Area */}
+                                    <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 relative z-20">
+                                        <button onClick={()=>{setCart(c=>c+1); alert("Added to cart");}} className="w-full bg-blue-600 text-white font-bold py-4 rounded-lg shadow-md hover:bg-blue-700">
+                                            ADD TO CART
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {view === 'cart' && (
+                            <div className={`p-6 ${!isMobile ? "max-w-2xl mx-auto my-10 border rounded-xl shadow-sm bg-white" : ""}`}>
+                                <h2 className="text-2xl font-bold mb-6 border-b pb-4">Shopping Cart</h2>
+                                {cart === 0 ? <p className="text-gray-500">Cart is empty.</p> : (
+                                    <div className="space-y-6 relative">
+                                        <div className="flex gap-4 items-center">
+                                            <div className="w-20 h-20 bg-gray-100 rounded flex items-center justify-center text-3xl">🏏</div>
+                                            <div className="flex-1"><h4 className="font-bold">Pro Series Bat</h4><p className="text-sm">Qty: {cart}</p></div>
+                                            <div className="font-bold">Rs {25000 * cart}</div>
+                                        </div>
+                                        <div className="border-t pt-4 space-y-2 text-sm text-gray-600">
+                                            <div className="flex justify-between font-bold text-lg text-gray-900 pt-2 border-t"><span>Total</span><span>Rs {(25000 * cart) + 500}</span></div>
+                                        </div>
+                                        <button onClick={handleCheckoutClick} className="w-full bg-green-600 text-white font-bold text-lg py-4 rounded-lg shadow mt-6 relative z-10">
+                                            CHECKOUT NOW
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {view === 'success' && (
+                            <div className="p-12 text-center h-full flex flex-col items-center justify-center">
+                                <div className="w-24 h-24 bg-green-100 text-green-600 rounded-full flex items-center justify-center text-5xl mx-auto mb-6">✓</div>
+                                <h2 className="text-3xl font-bold text-gray-900 mb-2">Order Confirmed!</h2>
+                                <button onClick={()=>{setCart(0); setView('product');}} className="text-blue-600 font-medium mt-6">Return Home</button>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Footer */}
+                    <div className="mock-footer pb-32">
+                        <h4 className="font-bold mb-4">PAK SPORTS</h4>
+                        <div className="text-sm text-gray-400 space-y-2"><p>About Us</p><p>Shipping</p><p>Contact</p></div>
+                    </div>
+
+                    {/* MOBILE TRAPS */}
+                    {isMobile && (
+                        <>
+                            <div className="friction-chat"><svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M12.012 2c-5.506 0-9.989 4.478-9.99 9.984a9.964 9.964 0 001.333 4.976L2 22l5.187-1.359a9.975 9.975 0 004.825 1.246h.005c5.505 0 9.988-4.478 9.989-9.984 0-2.67-1.04-5.18-2.928-7.068A9.932 9.932 0 0012.012 2zm5.353 14.364c-.227.639-1.32 1.218-1.815 1.282-.429.055-1.01.127-3.136-.753-2.569-1.06-4.226-3.666-4.354-3.836-.128-.17-1.038-1.38-1.038-2.634 0-1.253.647-1.872.883-2.12.235-.247.511-.31.682-.31.17 0 .34.004.488.01.16.008.375-.062.585.441.226.541.745 1.82.81 1.95.064.128.106.277.021.448-.085.17-.128.276-.255.425-.128.149-.271.324-.383.447-.128.128-.26.266-.113.522.149.255.665 1.097 1.427 1.78.983.882 1.803 1.157 2.059 1.285.255.128.404.106.554-.064.149-.17.639-.745.81-1.002.17-.255.34-.212.575-.128.234.085 1.49.702 1.746.83.255.128.425.191.488.298.064.106.064.617-.163 1.256z"/></svg></div>
+                            <div className="friction-cookie">
+                                <h4 className="font-bold text-sm mb-1">Cookie Notice</h4>
+                                <p className="text-xs text-gray-300 mb-3">We use trackers to optimize your experience. By continuing, you agree.</p>
+                                <button onClick={()=>alert("Cookie script failed.")} className="w-full bg-white text-black font-bold py-2 rounded text-sm">Accept All</button>
+                            </div>
+                        </>
+                    )}
+
+                    {/* HEATMAP ENGINE OVERLAY */}
+                    {isHeatmap && (
+                        <>
+                            {/* Darken the screen */}
+                            <div className="heatmap-layer"></div>
+                            
+                            {isMobile ? (
+                                <>
+                                    <div className="fold-line"></div>
+                                    <div className="fold-text">THE FOLD</div>
+                                    
+                                    {/* Mobile Hotspots */}
+                                    {/* Cold interactions at the top */}
+                                    <div className="heat-spot heat-cold w-32 h-32" style={{top:'200px', left:'120px'}}></div>
+                                    <div className="heat-spot heat-cold w-48 h-20" style={{top:'400px', left:'60px'}}></div>
+                                    
+                                    {/* RAGE CLICKS at the bottom (Blocked by UI) */}
+                                    <div className="heat-spot heat-hot w-64 h-64" style={{bottom:'-20px', left:'50px', position:'fixed'}}></div>
+                                    <div className="heat-spot heat-hot w-32 h-32" style={{bottom:'50px', right:'-10px', position:'fixed'}}></div>
+                                </>
+                            ) : (
+                                <>
+                                    {/* Desktop Hotspots */}
+                                    <div className="heat-spot heat-cold w-20 h-20" style={{top:'30px', right:'100px'}}></div>
+                                    
+                                    {/* Healthy Conversion clicks on Add to Cart */}
+                                    <div className="heat-spot heat-hot w-64 h-48" style={{top:'420px', right:'180px'}}></div>
+                                </>
+                            )}
+                        </>
+                    )}
+                </div>
+            );
+        };
+
+        const SimulatorView = ({ type }) => {
+            const [viewMode, setViewMode] = useState('mobile');
+
+            return (
+                <div className="animate-fade-in h-full flex flex-col max-w-6xl mx-auto">
+                    <div className="flex justify-between items-center mb-6 shrink-0 bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+                        <div>
+                            <h1 className="text-xl google-sans text-gray-800 font-medium">
+                                {type === 'ux' ? '🔴 Live Site UX Testing' : '🔥 Hotjar Heatmap Analysis'}
+                            </h1>
+                        </div>
+                        <div className="flex bg-gray-100 rounded-lg p-1">
+                            <button onClick={() => setViewMode('desktop')} className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${viewMode === 'desktop' ? 'bg-white shadow text-blue-600' : 'text-gray-600'}`}>💻 Desktop</button>
+                            <button onClick={() => setViewMode('mobile')} className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${viewMode === 'mobile' ? 'bg-white shadow text-blue-600' : 'text-gray-600'}`}>📱 Mobile</button>
+                        </div>
+                    </div>
+
+                    <div className="flex-1 flex justify-center items-start overflow-hidden py-4">
+                        <div className={`${viewMode === 'mobile' ? 'phone-frame' : 'desktop-frame'} transition-all duration-500`}>
+                            <MockEcommerce isMobile={viewMode === 'mobile'} isHeatmap={type === 'heat'} />
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // --- 5. MAIN APP LAYOUT ---
+        const App = () => {
+            const [activeView, setActiveView] = useState('snapshot');
+
+            const menuGroups = [
+                { title: 'Reports', items: [
+                    { id: 'snapshot', label: 'Reports snapshot' },
+                    { id: 'acquisition', label: 'Acquisition' },
+                    { id: 'engagement', label: 'Engagement (Funnel)' },
+                    { id: 'demographics', label: 'Demographics' },
+                    { id: 'ecommerce', label: 'Ecommerce' },
+                    { id: 'tech', label: 'Tech details' }
+                ]},
+                { title: 'UX Tools', items: [
+                    { id: 'heat', label: '🔥 Hotjar Heatmaps' },
+                    { id: 'ux', label: '🔴 Live Site Audit' }
+                ]}
+            ];
+
+            return (
+                <div className="flex h-screen overflow-hidden">
+                    {/* Primary Sidebar */}
+                    <div className="ga-sidebar flex flex-col items-center py-4 shrink-0">
+                        <div className="w-10 h-10 bg-blue-600 rounded flex items-center justify-center text-white font-bold mb-8 cursor-pointer shadow-md">P</div>
+                        <svg className="w-6 h-6 text-gray-500 mb-6 hover:bg-gray-100 rounded cursor-pointer p-1" viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+                        <svg className="w-6 h-6 fill-blue-600 bg-blue-50 rounded cursor-pointer p-1" viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14h-2V9h2v8zm-4 0H8v-4h2v4zm8 0h-2v-6h2v6z"/></svg>
+                    </div>
+
+                    {/* Secondary Navigation */}
+                    <div className="ga-subnav flex flex-col pt-6 shrink-0 shadow-sm">
+                        <div className="px-6 mb-6">
+                            <h2 className="google-sans text-xl text-gray-800">Analytics</h2>
+                            <p className="text-xs text-gray-500 mt-1">Pak Sports Inc. (All Web Data)</p>
+                        </div>
+                        
+                        <div className="flex-1 overflow-y-auto">
+                            {menuGroups.map((group, gIdx) => (
+                                <div key={gIdx} className="mb-6">
+                                    <div className="px-6 mb-2 text-xs font-bold text-gray-400 uppercase tracking-wider">{group.title}</div>
+                                    {group.items.map(item => (
+                                        <div key={item.id} onClick={() => setActiveView(item.id)} className={`flex items-center px-6 py-2.5 cursor-pointer text-sm transition-colors ${activeView === item.id ? 'nav-item-active border-r-4 border-blue-600' : 'nav-item'}`}>
+                                            {item.label}
+                                        </div>
+                                    ))}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                    
+                    {/* Main Content Area */}
+                    <div className="flex-1 flex flex-col min-w-0">
+                        <div className="h-16 bg-white border-b border-gray-200 flex justify-end items-center px-6 shrink-0 z-10 shadow-sm">
+                            <div className="text-sm text-gray-500 bg-gray-100 px-4 py-2 rounded-full cursor-pointer hover:bg-gray-200 font-medium">Oct 1 - Oct 30, 2026 ▼</div>
+                        </div>
+                        <div className="p-8 scrollable-content">
+                            {activeView === 'snapshot' && <SnapshotView />}
+                            {activeView === 'acquisition' && <AcquisitionView />}
+                            {activeView === 'demographics' && <DemographicsView />}
+                            {activeView === 'ecommerce' && <EcommerceView />}
+                            {activeView === 'engagement' && <FunnelView />}
+                            {activeView === 'tech' && <TechView />}
+                            {activeView === 'heat' && <SimulatorView type="heat" />}
+                            {activeView === 'ux' && <SimulatorView type="ux" />}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
